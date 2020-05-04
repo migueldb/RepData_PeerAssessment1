@@ -12,35 +12,40 @@ options(scipen = 1, digits=2)
 ## Loading and preprocessing the data
 1. Load the data.table package to read and process the data.
 
-```{r}
+```{r, warning = FALSE}
 library(data.table)
 ```
 
-2. Read the activity data usin fread.  fread has the ability to run shell
-commands such as unzip.
+2. Read the activity data using fread (fread has the ability to run shell
+commands such as unzip).
 
-```{r readAndProcess, cache = TRUE}
+```{r readAndProcess}
 activities <- fread("unzip -p activity.zip")
 ```
 
-3. convert interval and date variables to the correct data type.
+3. convert interval and date variables to the correct data type and format.
 
-```{r convertColumnsFormat, cache = TRUE}
-activities[, interval := as.factor(
-    formatC(interval, width = 4, format = "d", flag = "0")
-    )]
+```{r convertColumnsFormat}
+activities[
+    ,
+    interval := formatC(interval, width = 4, format = "d", flag = "0")
+    ]
+activities[
+    ,
+    interval := as.POSIXct(paste(date,interval),format = "%Y-%m-%d%H%M")
+    ]
 activities[, date := as.Date(date)]
 ```
 
 The variables included in this dataset are:
 
 * **steps**: Number of steps taking in a 5-minute interval (missingvalues are
-coded as `NA`)
+coded as `NA`).
 
-* **date**: The date on which the measurement was taken in YYYY-MM-DD format
+* **date**: The date on which the measurement was taken in YYYY-MM-DD format.
 
 * **interval**: Identifier for the 5-minute interval in which measurement was
-taken
+taken (modified to data-time POSIXct format).
 
 ```{r showSummary}
 summary(activities)
@@ -57,7 +62,7 @@ stepsByDay <- activities[
     ]
 hist(
     stepsByDay$V1,
-    main = "Histogram of Total Steps Per Day",
+    main = "Histogram of Total Steps per Day",
     xlab = "Steps"
     )
 ```
@@ -76,20 +81,32 @@ across all days and present the result as a time series plot.
 stepsByInterval <- activities[
     ,
     mean(steps, na.rm = TRUE),
-    by=interval
+    by=format(interval, "%H%M")
     ]
+v1 <- seq(0,2400,by=200)
+v2 <- paste0(
+    formatC(
+        seq(0,24,by=2),
+        width = 2,
+        format = "d",
+        flag = "0"
+        ),
+    ":",
+    rep("00",times=12)
+    )
 plot(
     stepsByInterval,
     type = "l",
     main = "Average Number of Steps Taken, Averaged Across All Days",
     ylab = "Average Steps",
     xlab = "5-minutes Interval",
-    lab = c(24,5,7)
+    xaxt = "n"
     )
+axis(side = 1, at = v1, labels = v2, tck=-.05)
 ```
 
 2. The 5-minute interval #
-**`r stepsByInterval[stepsByInterval[,lapply(.SD, which.max),.SDcols = "V1"]$V1,]$interval`**
+**`r stepsByInterval[stepsByInterval[,lapply(.SD, which.max),.SDcols = "V1"]$V1,]$format`**
 has on average:
 **`r stepsByInterval[stepsByInterval[,lapply(.SD, which.max),.SDcols = "V1"]$V1,]$V1`** steps.
 
@@ -100,14 +117,20 @@ has on average:
 the NA values
 
 ```{r fillNAs}
-activities[, "steps" := lapply("steps", function(x) {
-    x <- get(x)
-    x[is.na(x)] <- median(x, na.rm = TRUE)
-    x
-    }), by = interval]
+activities[
+    ,
+    "steps" := lapply(
+        "steps",
+        function(x) {
+            x <- get(x)
+            x[is.na(x)] <- median(x, na.rm = TRUE)
+            x
+            }
+        ),
+    by = format(interval, "%H%M")]
 ```
 
-3. The new dataset with the missing data filled in looks like:
+3. The new dataset with the missing data filled in looks like this:
 
 ```{r fillNAs_Summary}
 summary(activities)
@@ -122,7 +145,7 @@ newStepsByDay <- activities[
     ]
 hist(
     newStepsByDay$V1,
-    main = "Histogram of Total Steps Per Day",
+    main = "Histogram of Total Steps per Day with NAs Imputed",
     xlab = "Steps"
     )
 ```
@@ -146,11 +169,11 @@ The impact of having missing data imputed, in this case, is limited.  But still 
 
 ```{r weekend-weekday}
 activities[
-    weekdays(as.Date(date)) %in% c("Saturday", "Sunday"),
+    weekdays(date) %in% c("Saturday", "Sunday"),
     day := "weekend"
     ]
 activities[
-    !(weekdays(as.Date(date)) %in% c("Saturday", "Sunday")),
+    !(weekdays(date) %in% c("Saturday", "Sunday")),
     day := "weekday"
     ]
 activities[,day := as.factor(day)]
@@ -165,14 +188,14 @@ stepsByIntervalWeekend <- activities[
     ][
         ,
         mean(steps, na.rm = TRUE),
-        by=interval
+        by=format(interval, "%H%M")
         ]
 stepsByIntervalWeekday <- activities[
     day == "weekday"
     ][
         ,
         mean(steps, na.rm = TRUE),
-        by=interval
+        by=format(interval, "%H%M")
         ]
 par(mfrow = c(2,1))
 plot(
@@ -181,14 +204,16 @@ plot(
     main = "Average Number of Steps Taken, Averaged Across All Days for Weekends",
     ylab = "Average Steps",
     xlab = "5-minutes Interval",
-    lab = c(24,5,7)
+    xaxt = "n"
     )
+axis(side = 1, at = v1, labels = v2, tck=-.05)
 plot(
     stepsByIntervalWeekday,
     type = "l",
     main = "Average Number of Steps Taken, Averaged Across All Days for Weekdays",
     ylab = "Average Steps",
     xlab = "5-minutes Interval",
-    lab = c(24,5,7)
+    xaxt = "n"
     )
+axis(side = 1, at = v1, labels = v2, tck=-.05)
 ```

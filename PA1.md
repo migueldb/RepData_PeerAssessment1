@@ -15,33 +15,38 @@ output:
 library(data.table)
 ```
 
-2. Read the activity data usin fread.  fread has the ability to run shell
-commands such as unzip.
+2. Read the activity data using fread (fread has the ability to run shell
+commands such as unzip).
 
 
 ```r
 activities <- fread("unzip -p activity.zip")
 ```
 
-3. convert interval and date variables to the correct data type.
+3. convert interval and date variables to the correct data type and format.
 
 
 ```r
-activities[, interval := as.factor(
-    formatC(interval, width = 4, format = "d", flag = "0")
-    )]
+activities[
+    ,
+    interval := formatC(interval, width = 4, format = "d", flag = "0")
+    ]
+activities[
+    ,
+    interval := as.POSIXct(paste(date,interval),format = "%Y-%m-%d%H%M")
+    ]
 activities[, date := as.Date(date)]
 ```
 
 The variables included in this dataset are:
 
 * **steps**: Number of steps taking in a 5-minute interval (missingvalues are
-coded as `NA`)
+coded as `NA`).
 
-* **date**: The date on which the measurement was taken in YYYY-MM-DD format
+* **date**: The date on which the measurement was taken in YYYY-MM-DD format.
 
 * **interval**: Identifier for the 5-minute interval in which measurement was
-taken
+taken (modified to data-time POSIXct format).
 
 
 ```r
@@ -49,13 +54,13 @@ summary(activities)
 ```
 
 ```
-##      steps          date              interval   
-##  Min.   :  0    Length:17568       Min.   :   0  
-##  1st Qu.:  0    Class :character   1st Qu.: 589  
-##  Median :  0    Mode  :character   Median :1178  
-##  Mean   : 37                       Mean   :1178  
-##  3rd Qu.: 12                       3rd Qu.:1766  
-##  Max.   :806                       Max.   :2355  
+##      steps           date               interval                  
+##  Min.   :  0    Min.   :2012-10-01   Min.   :2012-10-01 00:00:00  
+##  1st Qu.:  0    1st Qu.:2012-10-16   1st Qu.:2012-10-16 05:58:45  
+##  Median :  0    Median :2012-10-31   Median :2012-10-31 11:57:30  
+##  Mean   : 37    Mean   :2012-10-31   Mean   :2012-10-31 12:23:58  
+##  3rd Qu.: 12    3rd Qu.:2012-11-15   3rd Qu.:2012-11-15 17:56:15  
+##  Max.   :806    Max.   :2012-11-30   Max.   :2012-11-30 23:55:00  
 ##  NA's   :2304
 ```
 
@@ -71,7 +76,7 @@ stepsByDay <- activities[
     ]
 hist(
     stepsByDay$V1,
-    main = "Histogram of Total Steps Per Day",
+    main = "Histogram of Total Steps per Day",
     xlab = "Steps"
     )
 ```
@@ -93,22 +98,34 @@ across all days and present the result as a time series plot.
 stepsByInterval <- activities[
     ,
     mean(steps, na.rm = TRUE),
-    by=interval
+    by=format(interval, "%H%M")
     ]
+v1 <- seq(0,2400,by=200)
+v2 <- paste0(
+    formatC(
+        seq(0,24,by=2),
+        width = 2,
+        format = "d",
+        flag = "0"
+        ),
+    ":",
+    rep("00",times=12)
+    )
 plot(
     stepsByInterval,
     type = "l",
     main = "Average Number of Steps Taken, Averaged Across All Days",
     ylab = "Average Steps",
     xlab = "5-minutes Interval",
-    lab = c(24,5,7)
+    xaxt = "n"
     )
+axis(side = 1, at = v1, labels = v2, tck=-.05)
 ```
 
 ![](PA1_files/figure-html/summarizeByInterval-1.png)<!-- -->
 
 2. The 5-minute interval #
-**835**
+**0835**
 has on average:
 **206.17** steps.
 
@@ -120,14 +137,20 @@ the NA values
 
 
 ```r
-activities[, "steps" := lapply("steps", function(x) {
-    x <- get(x)
-    x[is.na(x)] <- median(x, na.rm = TRUE)
-    x
-    }), by = interval]
+activities[
+    ,
+    "steps" := lapply(
+        "steps",
+        function(x) {
+            x <- get(x)
+            x[is.na(x)] <- median(x, na.rm = TRUE)
+            x
+            }
+        ),
+    by = format(interval, "%H%M")]
 ```
 
-3. The new dataset with the missing data filled in looks like:
+3. The new dataset with the missing data filled in looks like this:
 
 
 ```r
@@ -135,13 +158,13 @@ summary(activities)
 ```
 
 ```
-##      steps         date              interval   
-##  Min.   :  0   Length:17568       Min.   :   0  
-##  1st Qu.:  0   Class :character   1st Qu.: 589  
-##  Median :  0   Mode  :character   Median :1178  
-##  Mean   : 33                      Mean   :1178  
-##  3rd Qu.:  8                      3rd Qu.:1766  
-##  Max.   :806                      Max.   :2355
+##      steps          date               interval                  
+##  Min.   :  0   Min.   :2012-10-01   Min.   :2012-10-01 00:00:00  
+##  1st Qu.:  0   1st Qu.:2012-10-16   1st Qu.:2012-10-16 05:58:45  
+##  Median :  0   Median :2012-10-31   Median :2012-10-31 11:57:30  
+##  Mean   : 33   Mean   :2012-10-31   Mean   :2012-10-31 12:23:58  
+##  3rd Qu.:  8   3rd Qu.:2012-11-15   3rd Qu.:2012-11-15 17:56:15  
+##  Max.   :806   Max.   :2012-11-30   Max.   :2012-11-30 23:55:00
 ```
 
 4. Make a histogram of the total number of steps taken each day
@@ -154,7 +177,7 @@ newStepsByDay <- activities[
     ]
 hist(
     newStepsByDay$V1,
-    main = "Histogram of Total Steps Per Day",
+    main = "Histogram of Total Steps per Day with NAs Imputed",
     xlab = "Steps"
     )
 ```
@@ -181,11 +204,11 @@ The impact of having missing data imputed, in this case, is limited.  But still 
 
 ```r
 activities[
-    weekdays(as.Date(date)) %in% c("Saturday", "Sunday"),
+    weekdays(date) %in% c("Saturday", "Sunday"),
     day := "weekend"
     ]
 activities[
-    !(weekdays(as.Date(date)) %in% c("Saturday", "Sunday")),
+    !(weekdays(date) %in% c("Saturday", "Sunday")),
     day := "weekday"
     ]
 activities[,day := as.factor(day)]
@@ -193,13 +216,20 @@ summary(activities)
 ```
 
 ```
-##      steps         date              interval         day       
-##  Min.   :  0   Length:17568       Min.   :   0   weekday:12960  
-##  1st Qu.:  0   Class :character   1st Qu.: 589   weekend: 4608  
-##  Median :  0   Mode  :character   Median :1178                  
-##  Mean   : 33                      Mean   :1178                  
-##  3rd Qu.:  8                      3rd Qu.:1766                  
-##  Max.   :806                      Max.   :2355
+##      steps          date               interval                  
+##  Min.   :  0   Min.   :2012-10-01   Min.   :2012-10-01 00:00:00  
+##  1st Qu.:  0   1st Qu.:2012-10-16   1st Qu.:2012-10-16 05:58:45  
+##  Median :  0   Median :2012-10-31   Median :2012-10-31 11:57:30  
+##  Mean   : 33   Mean   :2012-10-31   Mean   :2012-10-31 12:23:58  
+##  3rd Qu.:  8   3rd Qu.:2012-11-15   3rd Qu.:2012-11-15 17:56:15  
+##  Max.   :806   Max.   :2012-11-30   Max.   :2012-11-30 23:55:00  
+##       day       
+##  weekday:12960  
+##  weekend: 4608  
+##                 
+##                 
+##                 
+## 
 ```
 
 2. Make a time-series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days
@@ -211,14 +241,14 @@ stepsByIntervalWeekend <- activities[
     ][
         ,
         mean(steps, na.rm = TRUE),
-        by=interval
+        by=format(interval, "%H%M")
         ]
 stepsByIntervalWeekday <- activities[
     day == "weekday"
     ][
         ,
         mean(steps, na.rm = TRUE),
-        by=interval
+        by=format(interval, "%H%M")
         ]
 par(mfrow = c(2,1))
 plot(
@@ -227,16 +257,18 @@ plot(
     main = "Average Number of Steps Taken, Averaged Across All Days for Weekends",
     ylab = "Average Steps",
     xlab = "5-minutes Interval",
-    lab = c(24,5,7)
+    xaxt = "n"
     )
+axis(side = 1, at = v1, labels = v2, tck=-.05)
 plot(
     stepsByIntervalWeekday,
     type = "l",
     main = "Average Number of Steps Taken, Averaged Across All Days for Weekdays",
     ylab = "Average Steps",
     xlab = "5-minutes Interval",
-    lab = c(24,5,7)
+    xaxt = "n"
     )
+axis(side = 1, at = v1, labels = v2, tck=-.05)
 ```
 
 ![](PA1_files/figure-html/weekendVsweekdaySteps-1.png)<!-- -->
